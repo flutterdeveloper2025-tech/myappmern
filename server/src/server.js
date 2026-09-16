@@ -11,7 +11,24 @@ import dotenv from 'dotenv';
 dotenv.config();
 const app=express();
 app.use(helmet());
-app.use(cors({origin:process.env.CLIENT_ORIGIN||true}));
+const allowedOrigins = new Set([
+  process.env.CLIENT_ORIGIN,
+  'http://localhost:5173',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
+  'ionic://localhost'
+].filter(Boolean));
+
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('CORS origin not allowed'));
+  },
+  methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+  credentials: false
+}));
 app.use(express.json({limit:'1mb'}));
 app.use(morgan('dev'));
 app.use(rateLimit({windowMs:15*60*1000,max:300}));

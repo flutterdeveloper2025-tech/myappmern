@@ -1,0 +1,73 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: it_service_desk_mern/client/package-lock.json
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install Android SDK tools
+        uses: android-actions/setup-android@v3
+
+      - name: Install client dependencies
+        working-directory: it_service_desk_mern/client
+        run: npm ci
+
+      - name: Build web app with LAN API URL
+        working-directory: it_service_desk_mern/client
+        env:
+          VITE_API_URL: http://192.168.0.189:3000/api
+        run: npm run build
+
+      - name: Create Android project
+        working-directory: it_service_desk_mern/client
+        run: npx cap add android
+
+      - name: Enable Android cleartext HTTP
+        working-directory: it_service_desk_mern/client
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android/app/src/main/AndroidManifest.xml')
+          s=p.read_text()
+          if 'android.permission.INTERNET' not in s:
+              s=s.replace('<manifest ', '<manifest ', 1)
+              s=s.replace('>', '>\n    <uses-permission android:name="android.permission.INTERNET" />', 1)
+          if 'android:usesCleartextTraffic=' not in s:
+              s=s.replace('<application ', '<application android:usesCleartextTraffic="true" ', 1)
+          p.write_text(s)
+          PY
+
+      - name: Sync Capacitor
+        working-directory: it_service_desk_mern/client
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: it_service_desk_mern/client/android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: it-service-desk-debug-apk
+          path: it_service_desk_mern/client/android/app/build/outputs/apk/debug/app-debug.apk
