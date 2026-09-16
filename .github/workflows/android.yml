@@ -1,0 +1,59 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm install
+
+      - name: Build React
+        working-directory: client
+        run: npm run build
+
+      - name: Install Capacitor
+        working-directory: client
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Create Capacitor config
+        working-directory: client
+        run: |
+          npx cap init "IT Service Desk" "com.itservicedesk.app" --web-dir dist
+
+      - name: Add Android
+        working-directory: client
+        run: npx cap add android
+
+      - name: Sync Android
+        working-directory: client
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Build APK
+        working-directory: client/android
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: IT-Service-Desk-APK
+          path: client/android/app/build/outputs/apk/debug/app-debug.apk
